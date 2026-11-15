@@ -36,7 +36,7 @@ ClinVerify is structured as a containerized microservices application composed o
 * **Embedding Generation:** 
   * *Dense Vector:* Generated via `BAAI/bge-small-en-v1.5` (384 dimensions, cosine distance).
   * *Sparse Vector:* Generated via server-side IDF-modified BM25 (`Qdrant/bm25`).
-* **Payload Metadata:** Each vector point stores `doc_id`, `page_num`, `citation` tag (e.g., `[FDA_Apixaban, p.4]`), and chunk text.
+* **Payload Metadata:** Each vector point stores `doc_id`, `page_num`, `citation` tag (e.g., `[FDA_Apixaban_2025, p.4]`), and chunk text.
 
 ### 2.2 Hybrid Retrieval & Cross-Encoder Reranking (`src/retrieval.py`)
 * **Step 1 (Parallel Prefetch):** Qdrant executes concurrent dense vector search and sparse lexical BM25 search.

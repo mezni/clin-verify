@@ -9,7 +9,7 @@ Unlike general-purpose semantic RAG systems—which frequently conflate similar 
 
 ## 2. Problem Statement
 Clinical research coordinators, pharmacovigilance analysts, and medical writers must routinely cross-reference hundreds of pages of unstructured PDFs to verify patient eligibility and drug-drug interactions. Standard vector-only RAG pipelines fail in this domain due to three critical vulnerabilities:
-1. **Numerical & Lexical Blindness:** Dense embedding models map distinct dosages (`5 mg` vs. `50 mg`) and biochemical markers (`CrCl < 30 mL/min`) into nearly identical vector spaces, causing dangerous retrieval misses.
+1. **Numerical & Lexical Blindness:** Dense embedding models map distinct dosages (`2.5 mg` vs. `25 mg`) and biochemical markers (`CrCl < 30 mL/min`) into nearly identical vector spaces, causing dangerous retrieval misses.
 2. **Table Fragmentation:** Naive character-based chunking splits multi-row FDA dosing tables across boundaries, separating conditions from their corresponding dose adjustments.
 3. **Unverifiable Hallucinations:** Without deterministic citation verification and automated regression testing, LLM outputs cannot be trusted in regulated healthcare workflows.
 
@@ -50,6 +50,6 @@ Clinical research coordinators, pharmacovigilance analysts, and medical writers 
 | Metric / Dimension | Target Threshold | Engineering Rationale |
 | :--- | :--- | :--- |
 | **Faithfulness (Ragas)** | `≥ 0.95` | Prevents unsupported clinical claims or dosage extrapolation. |
-| **Context Precision (Ragas)** | `≥ 0.88` | Ensures top-$k$ reranked chunks contain the exact target evidence. |
+| **LLMContextPrecisionWithReference (Ragas)** | `≥ 0.88` | Ensures top-$k$ reranked chunks contain the exact target evidence. |
 | **End-to-End Retrieval Latency (P95)** | `< 800 ms` | Balances cross-encoder accuracy with interactive clinical search UX. |
 | **Deployment Footprint** | Single `docker compose up` | Self-contained FastAPI + Qdrant + Streamlit stack with local ONNX embeddings. |

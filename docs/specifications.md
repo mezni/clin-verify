@@ -55,12 +55,33 @@
   "telemetry": {
     "retrieval_ms": 114.2,
     "rerank_ms": 342.6,
-    "generation_ms": 412.1,
-    "total_ms": 868.9
+    "generation_ms": 312.1,
+    "total_ms": 768.9
   },
   "citation_verified": true
 }
 ```
+
+### 1.3 Error Contracts
+
+All non-2xx responses share a single envelope:
+
+```json
+{
+  "error": "validation_error",
+  "detail": "top_k must be between 1 and 20",
+  "request_id": "b3f1c2e4-9d7a-4c1e-8f2a-1a2b3c4d5e6f"
+}
+```
+
+| Status | `error` | Trigger |
+| :--- | :--- | :--- |
+| **400** | `invalid_document` | Non-PDF MIME, corrupt/encrypted PDF, or unreadable bytes. |
+| **400** | `empty_collection` | `/query` issued before any document is ingested. |
+| **422** | `validation_error` | Pydantic schema violation (`top_k` out of range, `query` too short, bad `mode`). |
+| **500** | `upstream_llm_error` | OpenAI API failure/timeout after retries. |
+| **500** | `qdrant_unavailable` | Vector store connection failure. |
+| **503** | `reranker_unavailable` | Cross-encoder model failed to load. |
 
 ---
 
@@ -93,10 +114,10 @@
 | Component | Specification / Model | Operational Purpose |
 | :--- | :--- | :--- |
 | **PDF Parser** | `pymupdf4llm` | Preserves markdown tables and hierarchical headers (`##`, `###`) to prevent tabular fragmentation. |
-| **Chunking Strategy** | LangChain `RecursiveCharacterTextSplitter` | `chunk_size = 600` tokens, `chunk_overlap = 80` tokens. Separators ordered by table headers (`\n## `, `\n`). |
+| **Chunking Strategy** | LangChain `RecursiveCharacterTextSplitter` | `chunk_size = 600` tokens, `chunk_overlap = 80` tokens. Separators ordered to split at table headers (`\n## `, `\n### `, `\n\n`, `\n`, ` `). |
 | **Dense Embedder** | `BAAI/bge-small-en-v1.5` | Generates 384-dim semantic embeddings locally via ONNX runtime. |
 | **Sparse Embedder** | `Qdrant/bm25` (FastEmbed) | Computes token frequency and IDF for exact lexical and numerical matching. |
-| **Retrieval Fusion** | Reciprocal Rank Fusion (RRF) | Merges top-$k$ results from dense and sparse prefetch queries ($k=20$). |
+| **Retrieval Fusion** | Reciprocal Rank Fusion (RRF) | Merges the top-20 results from dense and sparse prefetch queries using RRF (rank constant `k=60`). |
 | **Reranker** | `BAAI/bge-reranker-base` | Cross-encoder model performing joint query-document scoring to evaluate clinical negation and context relevance ($k=5$). |
 | **Generator LLM** | `gpt-4o-mini` (`temperature=0.0`) | Enforces deterministic outputs, zero hallucination, and strict inline citation grounding. |
 
@@ -104,7 +125,7 @@
 
 ## 4. Golden Dataset & Evaluation Schema (`golden_dataset.json`)
 
-The evaluation test suite validates retrieval recall and generation faithfulness against a structured JSON schema:
+The evaluation test suite validates retrieval precision and generation faithfulness (`Faithfulness`, `LLMContextPrecisionWithReference`) against a structured JSON schema:
 
 ```json
 [

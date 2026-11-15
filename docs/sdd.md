@@ -153,8 +153,8 @@ class QueryResponse(BaseModel):
   "telemetry": {
     "retrieval_ms": 114.2,
     "rerank_ms": 342.6,
-    "generation_ms": 412.1,
-    "total_ms": 868.9
+    "generation_ms": 312.1,
+    "total_ms": 768.9
   },
   "citation_verified": true
 }
