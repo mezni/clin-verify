@@ -1,6 +1,6 @@
 # Implementation Plan & Roadmap
 
-> **Status:** Draft for review
+> **Status:** Complete — Phases 0–6 implemented and merged
 > **Scope:** Build sequence, milestones, and exit criteria for ClinVerify
 > **Related:** [sdd.md](sdd.md) · [architecture.md](architecture.md) · [specifications.md](specifications.md) · [testing.md](testing.md) · [adr/](adr/README.md)
 
@@ -22,6 +22,9 @@
 | 4 | UI & telemetry | Streamlit inspector with mode toggle and telemetry | Phase 3 |
 | 5 | Evaluation gate | Ragas CI gate + golden dataset | Phase 3 |
 | 6 | Hardening & release | Failure-mode coverage, docs, `docker compose up` | Phases 1–5 |
+
+All phases are delivered; this document is retained as the implementation record.
+See [CHANGELOG.md](../CHANGELOG.md) for the shipped changes per phase.
 
 ## 3. Phase Detail
 

@@ -27,20 +27,20 @@
 
 ## 3. Unit Tests
 
-### 3.1 Chunking (`src/ingestion.py`)
+### 3.1 Chunking (`src/clinverify/ingestion.py`)
 - Table rows stay bound to their header within a chunk (no condition/dose split).
 - Chunk length respects `chunk_size=600` with `chunk_overlap=80`.
 - Separator priority splits at `##`/`###` boundaries before falling back to `\n`.
 - `page_num` and `citation` metadata are attached correctly.
 - Edge cases: empty PDF, single-page PDF, table wider than `chunk_size`.
 
-### 3.2 Fusion & Retrieval (`src/retrieval.py`)
+### 3.2 Fusion & Retrieval (`src/clinverify/retrieval.py`)
 - RRF score matches the hand-computed `Σ 1/(k+rank)` (`k=60`) on synthetic ranked lists.
 - Ties and unequal-length lists are handled deterministically.
 - `dense_only` mode bypasses sparse prefetch and reranking.
 - `top_k` is clamped/validated to `1..20`.
 
-### 3.3 Citation Auditor (`src/generator.py`)
+### 3.3 Citation Auditor (`src/clinverify/generator.py`)
 - Valid `[doc_id, p.X]` tags resolving to retrieved chunks → `citation_verified=true`.
 - Unresolved tag (hallucinated `doc_id` or `page_num`) → `citation_verified=false`; unresolved count correct.
 - Multiple citations, malformed tags, and tags without a page number are handled per contract.
@@ -65,7 +65,7 @@
 
 ## 5. Evaluation Suite (`tests/test_ragas_eval.py`)
 
-- **Framework:** PyTest + Ragas v0.4+.
+- **Framework:** PyTest + Ragas (dev-only dependency; real LLM call gated by `CLINVERIFY_EVAL=1`).
 - **Dataset:** `golden_dataset.json` — version-controlled, with a coverage matrix:
 
 | Category | Example |

@@ -184,7 +184,7 @@ class ErrorResponse(BaseModel):
 
 ## 4. Core Component Specifications
 
-### 4.1 Ingestion Pipeline (`src/ingestion.py`)
+### 4.1 Ingestion Pipeline (`src/clinverify/ingestion.py`)
 
 - **Parser:** `pymupdf4llm` → structured Markdown preserving tables (`| ... |`) and headers (`##`, `###`).
 - **Chunking:** LangChain `RecursiveCharacterTextSplitter`, `chunk_size=600` tokens, `chunk_overlap=80`; separators ordered to split at table headers (`\n## `, `\n### `, `\n\n`, `\n`, ` `) so rows stay with their section.
@@ -194,14 +194,14 @@ class ErrorResponse(BaseModel):
 - **Payload:** `doc_id`, `page_num`, `citation` (`[FDA_Apixaban_2025, p.4]`), `text`.
 - **Idempotency:** deterministic point IDs (`uuid5(doc_id, chunk_index)`) make re-ingestion overwrite rather than duplicate.
 
-### 4.2 Hybrid Retrieval (`src/retrieval.py`)
+### 4.2 Hybrid Retrieval (`src/clinverify/retrieval.py`)
 
 - **Prefetch:** concurrent dense KNN + sparse BM25, `k=20` each.
 - **Fusion:** Reciprocal Rank Fusion — `score = Σ 1 / (k + rank)` with `k=60`.
 - **Rerank:** `BAAI/bge-reranker-base` joint query-document scoring; retain top `k=5`.
 - **Dense-only mode:** bypasses prefetch fusion and reranking for baseline comparison in the UI.
 
-### 4.3 Generation & Citation Auditor (`src/generator.py`)
+### 4.3 Generation & Citation Auditor (`src/clinverify/generator.py`)
 
 - **LLM:** `gpt-4o-mini`, `temperature=0.0`.
 - **System constraints:** answer solely from provided context; inline citations required; emit `INSUFFICIENT_CONTEXT` when evidence is absent.
@@ -262,7 +262,7 @@ Logged as structured JSON for every request:
   - Citation audit end-to-end: injected hallucinated citation must set `citation_verified=false`.
   - Failure-path assertions for `400`/`422`/`500`/`503` envelopes.
 - **Evaluation gate (`tests/test_ragas_eval.py`)**
-  - Framework: PyTest + Ragas v0.4+.
+  - Framework: PyTest + Ragas (dev-only dependency).
   - Metrics: `Faithfulness ≥ 0.95`, `LLMContextPrecisionWithReference ≥ 0.88`.
   - Dataset: `golden_dataset.json` (curated pharmacological Q&A with `expected_doc_id` and `expected_page`).
   - Runs on every pull request via GitHub Actions; **blocks merge on threshold regression**.

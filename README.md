@@ -57,10 +57,16 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology an
 ## Project Layout
 
 ```
-src/clinverify/    # application package (ingestion, retrieval, generator, api, client, ui)
+src/clinverify/    # application package (config, ingestion, retrieval, generator,
+                   #   evaluation, api, client, ui, logging, errors)
 tests/             # unit, integration, and evaluation tests
-docs/              # product, architecture, specs, SDD, plan, ADRs
-.github/workflows/ # CI (lint → typecheck → test)
+docs/              # product, architecture, specs, SDD, plan, testing, security,
+                   #   observability, deployment, ADRs
+.github/workflows/ # CI (lint → typecheck → test → Ragas eval gate)
+Dockerfile         # runtime image (API + UI; CPU-only model stack)
+docker-compose.yml # qdrant + api + ui topology with healthchecks and volumes
+Makefile           # common dev/deploy targets
+golden_dataset.json # version-controlled evaluation dataset
 ```
 
 ## Development

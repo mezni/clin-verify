@@ -62,7 +62,15 @@
 }
 ```
 
-### 1.3 Error Contracts
+### 1.3 Health Check (`GET /health`)
+
+Liveness probe used by Docker Compose healthchecks.
+
+```json
+{ "status": "ok" }
+```
+
+### 1.4 Error Contracts
 
 All non-2xx responses share a single envelope:
 
@@ -76,12 +84,13 @@ All non-2xx responses share a single envelope:
 
 | Status | `error` | Trigger |
 | :--- | :--- | :--- |
-| **400** | `invalid_document` | Non-PDF MIME, corrupt/encrypted PDF, or unreadable bytes. |
+| **400** | `invalid_document` | Non-PDF MIME, corrupt/encrypted PDF, unreadable bytes, empty file, or over the upload/page limits. |
 | **400** | `empty_collection` | `/query` issued before any document is ingested. |
 | **422** | `validation_error` | Pydantic schema violation (`top_k` out of range, `query` too short, bad `mode`). |
-| **500** | `upstream_llm_error` | OpenAI API failure/timeout after retries. |
+| **500** | `upstream_llm_error` | OpenAI API failure/timeout, or `OPENAI_API_KEY` not configured. |
 | **500** | `qdrant_unavailable` | Vector store connection failure. |
 | **503** | `reranker_unavailable` | Cross-encoder model failed to load. |
+| **500** | `internal_error` | Any other unexpected server error. |
 
 ---
 
@@ -115,6 +124,7 @@ All non-2xx responses share a single envelope:
 | :--- | :--- | :--- |
 | **PDF Parser** | `pymupdf4llm` | Preserves markdown tables and hierarchical headers (`##`, `###`) to prevent tabular fragmentation. |
 | **Chunking Strategy** | LangChain `RecursiveCharacterTextSplitter` | `chunk_size = 600` tokens, `chunk_overlap = 80` tokens. Separators ordered to split at table headers (`\n## `, `\n### `, `\n\n`, `\n`, ` `). |
+| **Ingestion Guards** | `MAX_UPLOAD_MB=50`, `MAX_PAGES=300`, `EMBED_BATCH_SIZE=64` | Reject oversized documents before parsing and bound peak memory by embedding/upserting in batches (FM-1). |
 | **Dense Embedder** | `BAAI/bge-small-en-v1.5` | Generates 384-dim semantic embeddings locally via ONNX runtime. |
 | **Sparse Embedder** | `Qdrant/bm25` (FastEmbed) | Computes token frequency and IDF for exact lexical and numerical matching. |
 | **Retrieval Fusion** | Reciprocal Rank Fusion (RRF) | Merges the top-20 results from dense and sparse prefetch queries using RRF (rank constant `k=60`). |

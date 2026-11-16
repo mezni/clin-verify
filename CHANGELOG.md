@@ -64,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   workflow (lint → typecheck → test).
 
 ### Changed
+- Documentation now reflects the delivered implementation: corrected module paths
+  (`src/clinverify/...`), documented the deployment topology and API/telemetry
+  components, added `GET /health` and the full error taxonomy to the
+  specifications, and marked the roadmap complete.
 - Repository cleanup and restructuring.
 - Corrected cross-document inconsistencies in citation format, latency example,
   dosage example, RRF parameters, and metric naming.
