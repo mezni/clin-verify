@@ -36,23 +36,56 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology an
 | Frontend UI | Streamlit |
 | Containerization | Docker, Docker Compose, Makefile |
 
-## Getting Started
+## Documentation
 
-### Prerequisites
+| Document | Description |
+| :--- | :--- |
+| [docs/product.md](docs/product.md) | Product brief, users, requirements, and SLAs |
+| [docs/architecture.md](docs/architecture.md) | System topology and component breakdown |
+| [docs/specifications.md](docs/specifications.md) | API contracts, Qdrant schema, and hyperparameters |
+| [docs/sdd.md](docs/sdd.md) | Specification-driven design (contracts, failure modes, telemetry) |
+| [docs/plan.md](docs/plan.md) | Implementation roadmap (Phases 0–6) |
+| [docs/testing.md](docs/testing.md) | Test strategy and CI quality gates |
+| [docs/adr/](docs/adr/README.md) | Architecture Decision Records |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
 
-- Docker and Docker Compose
-- An OpenAI API key
+## Project Layout
 
-### Setup
+```
+src/clinverify/    # application package (ingestion, retrieval, generator, api)
+tests/             # unit, integration, and evaluation tests
+docs/              # product, architecture, specs, SDD, plan, ADRs
+.github/workflows/ # CI (lint → typecheck → test)
+```
+
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.11+.
 
 ```bash
 git clone <repo-url> clin-verify
 cd clin-verify
-cp .env.example .env   # add your OPENAI_API_KEY
-docker compose up --build
+uv sync                # create the venv and install dependencies
+cp .env.example .env   # set OPENAI_API_KEY and other settings
 ```
 
-The FastAPI backend and Streamlit UI will be available once the stack is healthy.
+Run the quality gates (mirrored in CI):
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run pytest
+```
+
+## Deployment
+
+Container orchestration (FastAPI + Qdrant + Streamlit via Docker Compose) is
+delivered in Phase 6 — see [docs/plan.md](docs/plan.md). Once available:
+
+```bash
+docker compose up --build
+```
 
 ## Usage
 
@@ -62,12 +95,13 @@ The FastAPI backend and Streamlit UI will be available once the stack is healthy
 
 ## Evaluation
 
-```bash
-pytest tests/test_ragas_eval.py
-```
+The Ragas faithfulness and context-precision gates run against a curated golden
+dataset. The suite is introduced in Phase 5 — see [docs/testing.md](docs/testing.md).
 
-Runs the Ragas faithfulness and context-precision gates against the curated golden dataset.
+```bash
+uv run pytest tests/test_ragas_eval.py
+```
 
 ## License
 
-See repository for license details.
+Proprietary. All rights reserved.

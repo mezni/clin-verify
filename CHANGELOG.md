@@ -8,11 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- System architecture documentation (`docs/architecture.md`).
+- Documentation set: product brief, architecture, technical specifications,
+  specification-driven design (SDD), implementation plan, test strategy, and
+  Architecture Decision Records (`docs/`).
 - Project README with setup, usage, and evaluation instructions.
+- Phase 0 scaffold: `src/clinverify` package, `pyproject.toml` with pinned `uv.lock`,
+  `ruff`/`mypy`/`pytest` configuration, `.env.example`, and a GitHub Actions CI
+  workflow (lint → typecheck → test).
 
 ### Changed
 - Repository cleanup and restructuring.
+- Corrected cross-document inconsistencies in citation format, latency example,
+  dosage example, RRF parameters, and metric naming.
 
 ## [0.3.0] - 2026-11-07
 
