@@ -89,9 +89,33 @@ docker compose up --build
 
 ## Usage
 
-1. **Ingest** regulatory PDFs via the `/ingest` endpoint.
-2. **Query** the engine via `/query` or through the Streamlit evidence inspector.
-3. Inspect retrieval telemetry, RRF ranks, and reranker scores for each answer.
+Run the API locally (requires a Qdrant instance reachable at `QDRANT_URL`):
+
+```bash
+uv run uvicorn clinverify.api:app --reload
+```
+
+Ingest a regulatory PDF:
+
+```bash
+curl -X POST "http://localhost:8000/ingest?doc_id=FDA_Apixaban_2025" \
+  -F "file=@label.pdf;type=application/pdf"
+# {"status":"success","doc_id":"FDA_Apixaban_2025","pages_processed":24,"chunks_indexed":185}
+```
+
+`POST /ingest` parses the PDF, chunks it at table-header boundaries, embeds each
+chunk (dense + sparse), and upserts points into Qdrant. Re-ingesting the same
+`doc_id` replaces the prior version (idempotent).
+
+Querying (`POST /query`) and the Streamlit evidence inspector arrive in later
+phases — see [docs/plan.md](docs/plan.md).
+
+### Running tests
+
+```bash
+uv run pytest                                  # unit tests
+CLINVERIFY_INTEGRATION=1 uv run pytest         # + live Qdrant/FastEmbed tests
+```
 
 ## Evaluation
 

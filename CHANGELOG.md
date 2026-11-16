@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 1 ingestion slice: `POST /ingest` with layout-aware PDF parsing
+  (`pymupdf4llm`), header-aware chunking, FastEmbed dense + sparse embeddings,
+  and idempotent Qdrant upserts (`clinical_trials_hybrid`).
+- Ingestion error contracts (`400 invalid_document`, `422 validation_error`)
+  with a uniform error envelope and `X-Request-ID` correlation.
+- Unit tests (parsing, chunking, deterministic point ids, service, API contract)
+  and an opt-in live integration test.
 - Documentation set: product brief, architecture, technical specifications,
   specification-driven design (SDD), implementation plan, test strategy, and
   Architecture Decision Records (`docs/`).
