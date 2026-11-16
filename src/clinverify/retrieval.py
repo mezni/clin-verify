@@ -17,7 +17,7 @@ from time import perf_counter
 from typing import Any, Literal, Protocol
 
 from clinverify.config import Settings
-from clinverify.errors import EmptyCollectionError
+from clinverify.errors import EmptyCollectionError, RerankerUnavailableError, VectorStoreError
 from clinverify.ingestion import DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME, Embedder
 
 Mode = Literal["hybrid_rerank", "dense_only"]
@@ -97,9 +97,14 @@ class CrossEncoderReranker:
 
     def _load(self) -> Any:
         if self._model is None:
-            from sentence_transformers import CrossEncoder
+            try:
+                from sentence_transformers import CrossEncoder
 
-            self._model = CrossEncoder(self._model_name)
+                self._model = CrossEncoder(self._model_name)
+            except Exception as exc:  # noqa: BLE001 - normalize load failures
+                raise RerankerUnavailableError(
+                    f"Unable to load reranker '{self._model_name}': {exc}"
+                ) from exc
         return self._model
 
     def score(self, query: str, documents: Sequence[str]) -> list[float]:
@@ -128,13 +133,16 @@ class RetrievalService:
         self._reranker = reranker
 
     def _search(self, query: Any, using: str, limit: int) -> list[Any]:
-        response = self._client.query_points(
-            collection_name=self._settings.qdrant_collection,
-            query=query,
-            using=using,
-            limit=limit,
-            with_payload=True,
-        )
+        try:
+            response = self._client.query_points(
+                collection_name=self._settings.qdrant_collection,
+                query=query,
+                using=using,
+                limit=limit,
+                with_payload=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - normalize store failures
+            raise VectorStoreError(f"Vector store query failed: {exc}") from exc
         return list(response.points)
 
     def _to_chunk(self, point: Any, score: float, rerank_score: float | None) -> RetrievedChunk:
@@ -151,9 +159,12 @@ class RetrievalService:
 
     def retrieve(self, query: str, mode: Mode, top_k: int) -> RetrievalResult:
         collection = self._settings.qdrant_collection
-        if not self._client.collection_exists(collection) or (
-            self._client.count(collection, exact=True).count == 0
-        ):
+        try:
+            exists = self._client.collection_exists(collection)
+            is_empty = not exists or self._client.count(collection, exact=True).count == 0
+        except Exception as exc:  # noqa: BLE001 - normalize store failures
+            raise VectorStoreError(f"Vector store unavailable: {exc}") from exc
+        if is_empty:
             raise EmptyCollectionError(
                 "No documents have been ingested yet; ingest a PDF before querying"
             )

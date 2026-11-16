@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from clinverify.config import Settings
-from clinverify.errors import EmptyCollectionError
-from clinverify.retrieval import RetrievalService, reciprocal_rank_fusion
+from clinverify.errors import EmptyCollectionError, RerankerUnavailableError, VectorStoreError
+from clinverify.retrieval import CrossEncoderReranker, RetrievalService, reciprocal_rank_fusion
 
 
 class FakePoint:
@@ -128,3 +128,43 @@ def test_empty_collection_raises() -> None:
 
     with pytest.raises(EmptyCollectionError):
         service.retrieve("query", "hybrid_rerank", top_k=5)
+
+
+class _BrokenStore(FakeStore):
+    def collection_exists(self, collection_name: str) -> bool:
+        raise RuntimeError("connection refused")
+
+
+def test_unreachable_store_raises_vector_store_error() -> None:
+    store = _BrokenStore(dense=[], sparse=[], count=0)
+    service = RetrievalService(_settings(), store, FakeEmbedder(), FakeReranker())
+
+    with pytest.raises(VectorStoreError):
+        service.retrieve("query", "hybrid_rerank", top_k=5)
+
+
+def test_reranker_failure_propagates() -> None:
+    dense = [FakePoint("a", 0.9, "alpha")]
+    store = FakeStore(dense, sparse=[], count=1)
+
+    class BrokenReranker:
+        def score(self, query: str, documents: Sequence[str]) -> list[float]:
+            raise RerankerUnavailableError("model missing")
+
+    service = RetrievalService(_settings(), store, FakeEmbedder(), BrokenReranker())
+
+    with pytest.raises(RerankerUnavailableError):
+        service.retrieve("query", "hybrid_rerank", top_k=1)
+
+
+def test_cross_encoder_load_failure_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sentence_transformers
+
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("cannot download model")
+
+    monkeypatch.setattr(sentence_transformers, "CrossEncoder", _boom)
+    reranker = CrossEncoderReranker("BAAI/bge-reranker-base")
+
+    with pytest.raises(RerankerUnavailableError):
+        reranker.score("query", ["document"])

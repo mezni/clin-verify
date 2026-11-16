@@ -107,19 +107,22 @@ curl -X POST "http://localhost:8000/ingest?doc_id=FDA_Apixaban_2025" \
 chunk (dense + sparse), and upserts points into Qdrant. Re-ingesting the same
 `doc_id` replaces the prior version (idempotent).
 
-Query the indexed evidence with two-stage hybrid retrieval (dense + BM25
-prefetch → RRF fusion → cross-encoder reranking):
+Query the indexed evidence with the full pipeline (dense + BM25 prefetch → RRF
+fusion → cross-encoder reranking → grounded generation → citation audit):
 
 ```bash
 curl -X POST "http://localhost:8000/query" \
   -H "Content-Type: application/json" \
   -d '{"query": "What is the reduced dose of apixaban?", "mode": "hybrid_rerank", "top_k": 5}'
-# {"query":"...","answer":null,"sources":[{"text":"...","citation":"[FDA_Apixaban_2025, p.4]","rerank_score":4.82,"score":0.89}],"telemetry":{...},"citation_verified":null}
+# {"query":"...","answer":"The reduced dose is 2.5 mg twice daily [FDA_Apixaban_2025, p.4].","sources":[...],"telemetry":{...},"citation_verified":true}
 ```
 
-Set `"mode": "dense_only"` for the baseline (dense-only) retrieval path. Until
-Phase 3 lands, `answer` and `citation_verified` are `null` and `/query` returns
-ranked sources only. Querying before any document is ingested returns
+Generation runs `gpt-4o-mini` at `temperature=0.0` (set `OPENAI_API_KEY`) and
+answers solely from the retrieved context, emitting inline `[doc_id, p.X]`
+citations that are programmatically verified — unresolved tags set
+`citation_verified=false`. When the context lacks the answer, `/query` returns
+`INSUFFICIENT_CONTEXT` instead of interpolating. Set `"mode": "dense_only"` for
+the baseline retrieval path. Querying before any document is ingested returns
 `400 empty_collection`. The Streamlit evidence inspector arrives in a later
 phase — see [docs/plan.md](docs/plan.md).
 

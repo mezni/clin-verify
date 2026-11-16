@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
@@ -10,9 +10,17 @@ from fastapi.testclient import TestClient
 
 from clinverify.api import create_app
 from clinverify.config import Settings
-from clinverify.errors import EmptyCollectionError
+from clinverify.errors import (
+    EmptyCollectionError,
+    RerankerUnavailableError,
+    UpstreamLLMError,
+    VectorStoreError,
+)
+from clinverify.generator import GenerationResult
 from clinverify.ingestion import IngestResult
 from clinverify.retrieval import Mode, RetrievalResult, RetrievedChunk
+
+ANSWER = "The reduced dose is 2.5 mg BID [FDA_Apixaban_2025, p.4]."
 
 
 class FakeIngestionService:
@@ -43,38 +51,76 @@ class FakeRetrievalService:
         return RetrievalResult(sources=sources, retrieval_ms=114.2, rerank_ms=342.6)
 
 
+class FakeGenerationService:
+    def __init__(
+        self,
+        *,
+        answer: str = ANSWER,
+        citation_verified: bool = True,
+        abstained: bool = False,
+        generation_ms: float = 312.1,
+        error: Exception | None = None,
+    ) -> None:
+        self._answer = answer
+        self._citation_verified = citation_verified
+        self._abstained = abstained
+        self._generation_ms = generation_ms
+        self.error = error
+        self.calls: list[tuple[str, list[RetrievedChunk]]] = []
+
+    def generate(self, query: str, sources: Sequence[RetrievedChunk]) -> GenerationResult:
+        self.calls.append((query, list(sources)))
+        if self.error is not None:
+            raise self.error
+        return GenerationResult(
+            answer=self._answer,
+            citation_verified=self._citation_verified,
+            abstained=self._abstained,
+            unresolved_count=0,
+            generation_ms=self._generation_ms,
+        )
+
+
 @contextmanager
-def _client(retrieval: FakeRetrievalService, **settings_overrides: Any) -> Iterator[TestClient]:
+def _client(
+    retrieval: FakeRetrievalService,
+    generation: FakeGenerationService | None = None,
+    **settings_overrides: Any,
+) -> Iterator[TestClient]:
     settings = Settings(_env_file=None, **settings_overrides)  # type: ignore[call-arg]
     app = create_app(
         settings=settings,
         ingestion=FakeIngestionService(),
         retrieval=retrieval,
+        generation=generation or FakeGenerationService(),
     )
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
 
 
-def test_query_hybrid_returns_sources() -> None:
-    service = FakeRetrievalService()
-    with _client(service) as client:
+def test_query_hybrid_returns_answer_and_sources() -> None:
+    retrieval = FakeRetrievalService()
+    generation = FakeGenerationService()
+    with _client(retrieval, generation) as client:
         response = client.post("/query", json={"query": "What is the dose?", "top_k": 5})
 
     assert response.status_code == 200
     body = response.json()
     assert body["query"] == "What is the dose?"
-    assert body["answer"] is None
-    assert body["citation_verified"] is None
+    assert body["answer"] == ANSWER
+    assert body["citation_verified"] is True
     assert body["sources"][0]["citation"] == "[FDA_Apixaban_2025, p.4]"
     assert body["sources"][0]["rerank_score"] == 4.821
     assert body["telemetry"]["retrieval_ms"] == 114.2
-    assert body["telemetry"]["total_ms"] == 114.2 + 342.6
-    assert service.calls[0][1] == "hybrid_rerank"
+    assert body["telemetry"]["generation_ms"] == 312.1
+    assert body["telemetry"]["total_ms"] == 114.2 + 342.6 + 312.1
+    assert retrieval.calls[0][1] == "hybrid_rerank"
+    assert generation.calls[0][1][0].doc_id == "FDA_Apixaban_2025"
 
 
 def test_query_dense_only_mode() -> None:
-    service = FakeRetrievalService()
-    with _client(service) as client:
+    retrieval = FakeRetrievalService()
+    with _client(retrieval) as client:
         response = client.post(
             "/query",
             json={"query": "What is the dose?", "mode": "dense_only"},
@@ -82,7 +128,19 @@ def test_query_dense_only_mode() -> None:
 
     assert response.status_code == 200
     assert response.json()["sources"][0]["rerank_score"] is None
-    assert service.calls[0][1] == "dense_only"
+    assert retrieval.calls[0][1] == "dense_only"
+
+
+def test_query_abstention_returns_insufficient_context() -> None:
+    generation = FakeGenerationService(
+        answer="INSUFFICIENT_CONTEXT", citation_verified=False, abstained=True
+    )
+    with _client(FakeRetrievalService(), generation) as client:
+        response = client.post("/query", json={"query": "What is the dose?"})
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "INSUFFICIENT_CONTEXT"
+    assert response.json()["citation_verified"] is False
 
 
 def test_query_top_k_bounds_return_422() -> None:
@@ -117,3 +175,30 @@ def test_query_empty_collection_returns_400() -> None:
 
     assert response.status_code == 400
     assert response.json()["error"] == "empty_collection"
+
+
+def test_query_upstream_llm_error_returns_500() -> None:
+    generation = FakeGenerationService(error=UpstreamLLMError("timeout"))
+    with _client(FakeRetrievalService(), generation) as client:
+        response = client.post("/query", json={"query": "What is the dose?"})
+
+    assert response.status_code == 500
+    assert response.json()["error"] == "upstream_llm_error"
+
+
+def test_query_vector_store_error_returns_500() -> None:
+    retrieval = FakeRetrievalService(error=VectorStoreError("connection refused"))
+    with _client(retrieval) as client:
+        response = client.post("/query", json={"query": "What is the dose?"})
+
+    assert response.status_code == 500
+    assert response.json()["error"] == "qdrant_unavailable"
+
+
+def test_query_reranker_error_returns_503() -> None:
+    retrieval = FakeRetrievalService(error=RerankerUnavailableError("model missing"))
+    with _client(retrieval) as client:
+        response = client.post("/query", json={"query": "What is the dose?"})
+
+    assert response.status_code == 503
+    assert response.json()["error"] == "reranker_unavailable"

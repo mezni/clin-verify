@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
@@ -11,8 +11,9 @@ from fastapi.testclient import TestClient
 from clinverify.api import create_app
 from clinverify.config import Settings
 from clinverify.errors import InvalidDocumentError
+from clinverify.generator import GenerationResult
 from clinverify.ingestion import IngestResult
-from clinverify.retrieval import Mode, RetrievalResult
+from clinverify.retrieval import Mode, RetrievalResult, RetrievedChunk
 
 PDF_BYTES = b"%PDF-1.4\n%%EOF\n"
 DOC_ID = "FDA_Apixaban_2025"
@@ -21,6 +22,17 @@ DOC_ID = "FDA_Apixaban_2025"
 class _NoopRetrievalService:
     def retrieve(self, query: str, mode: Mode, top_k: int) -> RetrievalResult:
         return RetrievalResult(sources=[], retrieval_ms=0.0, rerank_ms=0.0)
+
+
+class _NoopGenerationService:
+    def generate(self, query: str, sources: Sequence[RetrievedChunk]) -> GenerationResult:
+        return GenerationResult(
+            answer="INSUFFICIENT_CONTEXT",
+            citation_verified=False,
+            abstained=True,
+            unresolved_count=0,
+            generation_ms=0.0,
+        )
 
 
 class FakeService:
@@ -40,7 +52,12 @@ class FakeService:
 @contextmanager
 def _client(service: FakeService, **settings_overrides: Any) -> Iterator[TestClient]:
     settings = Settings(_env_file=None, **settings_overrides)  # type: ignore[call-arg]
-    app = create_app(settings=settings, ingestion=service, retrieval=_NoopRetrievalService())
+    app = create_app(
+        settings=settings,
+        ingestion=service,
+        retrieval=_NoopRetrievalService(),
+        generation=_NoopGenerationService(),
+    )
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
 

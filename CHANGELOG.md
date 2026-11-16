@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 3 generation & citation audit: grounded `gpt-4o-mini` generation
+  (`temperature=0.0`) over reranked context, deterministic
+  `INSUFFICIENT_CONTEXT` abstention, and a regex citation auditor that sets
+  `citation_verified` and counts unresolved `[doc_id, p.X]` tags.
+- Complete `/query` telemetry (`generation_ms`, `total_ms`) and error contracts
+  (`500 upstream_llm_error`, `500 qdrant_unavailable`, `503 reranker_unavailable`).
 - Phase 2 retrieval slice: `POST /query` with parallel dense + sparse prefetch
   (`k=20`), Reciprocal Rank Fusion (`k=60`), and cross-encoder reranking
   (`bge-reranker-base`, top `k=5`), returning `sources` with

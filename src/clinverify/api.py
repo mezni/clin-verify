@@ -1,8 +1,8 @@
 """FastAPI application exposing the ClinVerify HTTP endpoints.
 
-Contracts are defined in ``docs/specifications.md``. ``POST /ingest`` is
-implemented (Phase 1) and ``POST /query`` performs retrieval and reranking
-(Phase 2); grounded generation and citation auditing are added in Phase 3.
+Contracts are defined in ``docs/specifications.md``. ``POST /ingest`` ingests
+regulatory PDFs (Phase 1) and ``POST /query`` runs hybrid retrieval, reranking,
+grounded generation, and citation auditing (Phases 2-3).
 """
 
 from __future__ import annotations
@@ -19,7 +19,18 @@ from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient
 
 from clinverify.config import DOC_ID_PATTERN, Settings, get_settings
-from clinverify.errors import EmptyCollectionError, InvalidDocumentError
+from clinverify.errors import (
+    EmptyCollectionError,
+    InvalidDocumentError,
+    RerankerUnavailableError,
+    UpstreamLLMError,
+    VectorStoreError,
+)
+from clinverify.generator import (
+    GenerationService,
+    GenerationServiceProtocol,
+    OpenAIChatClient,
+)
 from clinverify.ingestion import (
     FastEmbedEmbedder,
     IngestionService,
@@ -73,17 +84,13 @@ class Telemetry(BaseModel):
 
 
 class QueryResponse(BaseModel):
-    """``POST /query`` response.
-
-    ``answer`` and ``citation_verified`` are populated in Phase 3; until then
-    they are ``None`` and only retrieval sources are returned.
-    """
+    """``POST /query`` response with the grounded answer and audit outcome."""
 
     query: str
-    answer: str | None = None
+    answer: str
     sources: list[Source]
     telemetry: Telemetry
-    citation_verified: bool | None = None
+    citation_verified: bool
 
 
 class ErrorResponse(BaseModel):
@@ -121,8 +128,18 @@ def get_retrieval_service(request: Request) -> RetrievalServiceProtocol:
     return service  # type: ignore[no-any-return]
 
 
+def get_generation_service(request: Request) -> GenerationServiceProtocol:
+    """Resolve the generation service from application state."""
+
+    service = getattr(request.app.state, "generation", None)
+    if service is None:  # pragma: no cover - defensive; set in lifespan
+        raise RuntimeError("generation service is not initialized")
+    return service  # type: ignore[no-any-return]
+
+
 IngestionDep = Annotated[IngestionServiceProtocol, Depends(get_ingestion_service)]
 RetrievalDep = Annotated[RetrievalServiceProtocol, Depends(get_retrieval_service)]
+GenerationDep = Annotated[GenerationServiceProtocol, Depends(get_generation_service)]
 
 
 def create_app(
@@ -130,6 +147,7 @@ def create_app(
     settings: Settings | None = None,
     ingestion: IngestionServiceProtocol | None = None,
     retrieval: RetrievalServiceProtocol | None = None,
+    generation: GenerationServiceProtocol | None = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
@@ -138,6 +156,8 @@ def create_app(
         ingestion: Optional pre-built ingestion service. When omitted, the
             service is constructed during application startup.
         retrieval: Optional pre-built retrieval service. When omitted, the
+            service is constructed during application startup.
+        generation: Optional pre-built generation service. When omitted, the
             service is constructed during application startup.
     """
 
@@ -157,12 +177,22 @@ def create_app(
                     embedder,
                     CrossEncoderReranker(app_settings.reranker_model),
                 )
+        if application.state.generation is None:
+            application.state.generation = GenerationService(
+                app_settings,
+                OpenAIChatClient(
+                    app_settings.generator_model,
+                    app_settings.generator_temperature,
+                    app_settings.openai_api_key,
+                ),
+            )
         yield
 
     app = FastAPI(title="ClinVerify API", version="0.1.0", lifespan=lifespan)
     app.state.settings = app_settings
     app.state.ingestion = ingestion
     app.state.retrieval = retrieval
+    app.state.generation = generation
 
     @app.middleware("http")
     async def attach_request_id(request: Request, call_next: Any) -> Any:
@@ -179,6 +209,18 @@ def create_app(
     @app.exception_handler(EmptyCollectionError)
     async def handle_empty_collection(request: Request, exc: EmptyCollectionError) -> JSONResponse:
         return _error_response(request, 400, "empty_collection", str(exc))
+
+    @app.exception_handler(UpstreamLLMError)
+    async def handle_upstream_llm(request: Request, exc: UpstreamLLMError) -> JSONResponse:
+        return _error_response(request, 500, "upstream_llm_error", str(exc))
+
+    @app.exception_handler(VectorStoreError)
+    async def handle_vector_store(request: Request, exc: VectorStoreError) -> JSONResponse:
+        return _error_response(request, 500, "qdrant_unavailable", str(exc))
+
+    @app.exception_handler(RerankerUnavailableError)
+    async def handle_reranker(request: Request, exc: RerankerUnavailableError) -> JSONResponse:
+        return _error_response(request, 503, "reranker_unavailable", str(exc))
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(
@@ -228,15 +270,17 @@ def create_app(
     async def query(
         request: Request,
         body: QueryRequest,
-        service: RetrievalDep,
+        retrieval: RetrievalDep,
+        generation: GenerationDep,
     ) -> QueryResponse:
-        result: RetrievalResult = service.retrieve(
+        result: RetrievalResult = retrieval.retrieve(
             query=body.query, mode=body.mode, top_k=body.top_k
         )
-        total_ms = result.retrieval_ms + result.rerank_ms
+        answer = generation.generate(query=body.query, sources=result.sources)
+        total_ms = result.retrieval_ms + result.rerank_ms + answer.generation_ms
         return QueryResponse(
             query=body.query,
-            answer=None,
+            answer=answer.answer,
             sources=[
                 Source(
                     text=chunk.text,
@@ -249,10 +293,10 @@ def create_app(
             telemetry=Telemetry(
                 retrieval_ms=result.retrieval_ms,
                 rerank_ms=result.rerank_ms,
-                generation_ms=0.0,
+                generation_ms=answer.generation_ms,
                 total_ms=total_ms,
             ),
-            citation_verified=None,
+            citation_verified=answer.citation_verified,
         )
 
     return app

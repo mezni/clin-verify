@@ -19,3 +19,24 @@ class EmptyCollectionError(ClinVerifyError):
 
     Maps to the ``400 empty_collection`` contract in ``docs/specifications.md``.
     """
+
+
+class UpstreamLLMError(ClinVerifyError):
+    """Raised when the generation LLM fails or times out.
+
+    Maps to the ``500 upstream_llm_error`` contract in ``docs/specifications.md``.
+    """
+
+
+class VectorStoreError(ClinVerifyError):
+    """Raised when the vector store is unreachable or errors.
+
+    Maps to the ``500 qdrant_unavailable`` contract in ``docs/specifications.md``.
+    """
+
+
+class RerankerUnavailableError(ClinVerifyError):
+    """Raised when the cross-encoder reranker cannot be loaded.
+
+    Maps to the ``503 reranker_unavailable`` contract in ``docs/specifications.md``.
+    """
