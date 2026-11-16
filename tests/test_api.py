@@ -12,9 +12,15 @@ from clinverify.api import create_app
 from clinverify.config import Settings
 from clinverify.errors import InvalidDocumentError
 from clinverify.ingestion import IngestResult
+from clinverify.retrieval import Mode, RetrievalResult
 
 PDF_BYTES = b"%PDF-1.4\n%%EOF\n"
 DOC_ID = "FDA_Apixaban_2025"
+
+
+class _NoopRetrievalService:
+    def retrieve(self, query: str, mode: Mode, top_k: int) -> RetrievalResult:
+        return RetrievalResult(sources=[], retrieval_ms=0.0, rerank_ms=0.0)
 
 
 class FakeService:
@@ -34,7 +40,7 @@ class FakeService:
 @contextmanager
 def _client(service: FakeService, **settings_overrides: Any) -> Iterator[TestClient]:
     settings = Settings(_env_file=None, **settings_overrides)  # type: ignore[call-arg]
-    app = create_app(settings=settings, ingestion=service)
+    app = create_app(settings=settings, ingestion=service, retrieval=_NoopRetrievalService())
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
 

@@ -20,7 +20,7 @@ import pymupdf
 import pymupdf4llm
 from fastembed import SparseTextEmbedding, TextEmbedding
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from qdrant_client import QdrantClient, models
+from qdrant_client import models
 
 from clinverify.config import Settings
 from clinverify.errors import InvalidDocumentError
@@ -266,11 +266,3 @@ class IngestionService:
             pages_processed=len(pages),
             chunks_indexed=len(chunks),
         )
-
-
-def build_ingestion_service(settings: Settings) -> IngestionService:
-    """Construct the production ingestion service."""
-
-    client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
-    embedder = FastEmbedEmbedder(settings.dense_model, settings.sparse_model)
-    return IngestionService(settings, client, embedder)

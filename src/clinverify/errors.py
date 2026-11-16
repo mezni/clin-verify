@@ -12,3 +12,10 @@ class InvalidDocumentError(ClinVerifyError):
 
     Maps to the ``400 invalid_document`` contract in ``docs/specifications.md``.
     """
+
+
+class EmptyCollectionError(ClinVerifyError):
+    """Raised when a query is issued before any document is ingested.
+
+    Maps to the ``400 empty_collection`` contract in ``docs/specifications.md``.
+    """

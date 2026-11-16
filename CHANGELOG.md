@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 2 retrieval slice: `POST /query` with parallel dense + sparse prefetch
+  (`k=20`), Reciprocal Rank Fusion (`k=60`), and cross-encoder reranking
+  (`bge-reranker-base`, top `k=5`), returning `sources` with
+  `text`/`citation`/`score`/`rerank_score` and `retrieval_ms`/`rerank_ms`.
+- `dense_only` retrieval mode for baseline comparison.
+- `400 empty_collection` guard when querying before any document is ingested.
 - Phase 1 ingestion slice: `POST /ingest` with layout-aware PDF parsing
   (`pymupdf4llm`), header-aware chunking, FastEmbed dense + sparse embeddings,
   and idempotent Qdrant upserts (`clinical_trials_hybrid`).

@@ -107,8 +107,21 @@ curl -X POST "http://localhost:8000/ingest?doc_id=FDA_Apixaban_2025" \
 chunk (dense + sparse), and upserts points into Qdrant. Re-ingesting the same
 `doc_id` replaces the prior version (idempotent).
 
-Querying (`POST /query`) and the Streamlit evidence inspector arrive in later
-phases — see [docs/plan.md](docs/plan.md).
+Query the indexed evidence with two-stage hybrid retrieval (dense + BM25
+prefetch → RRF fusion → cross-encoder reranking):
+
+```bash
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is the reduced dose of apixaban?", "mode": "hybrid_rerank", "top_k": 5}'
+# {"query":"...","answer":null,"sources":[{"text":"...","citation":"[FDA_Apixaban_2025, p.4]","rerank_score":4.82,"score":0.89}],"telemetry":{...},"citation_verified":null}
+```
+
+Set `"mode": "dense_only"` for the baseline (dense-only) retrieval path. Until
+Phase 3 lands, `answer` and `citation_verified` are `null` and `/query` returns
+ranked sources only. Querying before any document is ingested returns
+`400 empty_collection`. The Streamlit evidence inspector arrives in a later
+phase — see [docs/plan.md](docs/plan.md).
 
 ### Running tests
 
