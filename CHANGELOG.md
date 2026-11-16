@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 6 hardening & release: Docker Compose topology (`api` + `qdrant` + `ui`)
+  with healthcheck-gated startup and persistent `qdrant_storage`/`model_cache`
+  volumes, plus a `Dockerfile`, `.dockerignore`, and `Makefile`.
+- Ingestion hardening (FM-1): `MAX_PAGES` page-count guard and batched
+  embedding/upsert (`EMBED_BATCH_SIZE`) to bound peak memory.
+- Fast-fail on a missing `OPENAI_API_KEY` (FM-5) instead of a hanging upstream
+  request, surfacing a clean `500 upstream_llm_error`.
+- CPU-only PyTorch via a dedicated uv index, cutting the runtime image from
+  ~19.8 GB to ~4.9 GB.
+- Operational docs: `docs/security.md`, `docs/observability.md`,
+  `docs/deployment.md`, and `CONTRIBUTING.md`; failure-mode coverage table in
+  `docs/testing.md`; `latency_p95()` SLA helper.
 - Phase 5 evaluation gate: version-controlled `golden_dataset.json` (dosage,
   contraindication, negation, eligibility, abstention coverage) and a
   merge-blocking Ragas gate (`tests/test_ragas_eval.py`) enforcing

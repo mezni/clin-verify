@@ -5,16 +5,22 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+import pytest
 from qdrant_client import models
 
 from clinverify.config import Settings
+from clinverify.errors import InvalidDocumentError
 from clinverify.ingestion import IngestionService
 
 
 class FakeEmbedder:
     """Deterministic embedder that avoids downloading ONNX models."""
 
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+
     def embed(self, texts: Sequence[str]) -> tuple[list[list[float]], list[models.SparseVector]]:
+        self.calls.append(len(texts))
         dense = [[float(len(text) % 7) for _ in range(4)] for text in texts]
         sparse = [
             models.SparseVector(indices=[1, 2], values=[1.0, float(len(text))]) for text in texts
@@ -56,16 +62,17 @@ class FakeQdrantClient:
 
 def _service(
     **settings_overrides: Any,
-) -> tuple[IngestionService, FakeQdrantClient]:
+) -> tuple[IngestionService, FakeQdrantClient, FakeEmbedder]:
     settings = Settings(_env_file=None, **settings_overrides)  # type: ignore[call-arg]
     client = FakeQdrantClient()
-    return IngestionService(settings, client, FakeEmbedder()), client
+    embedder = FakeEmbedder()
+    return IngestionService(settings, client, embedder), client, embedder
 
 
 def test_ingest_returns_counts(
     pdf_factory: Callable[[list[list[str]]], bytes],
 ) -> None:
-    service, client = _service()
+    service, client, _ = _service()
     data = pdf_factory([["## Dosing", "| Apixaban | 2.5 mg BID |"]])
 
     result = service.ingest("FDA_Apixaban_2025", data)
@@ -74,13 +81,14 @@ def test_ingest_returns_counts(
     assert result.pages_processed == 1
     assert result.chunks_indexed >= 1
     assert client.upserted
-    assert len(client.upserted[-1]) == result.chunks_indexed
+    indexed = sum(len(batch) for batch in client.upserted)
+    assert indexed == result.chunks_indexed
 
 
 def test_ingest_deletes_existing_points_for_doc(
     pdf_factory: Callable[[list[list[str]]], bytes],
 ) -> None:
-    service, client = _service()
+    service, client, _ = _service()
     data = pdf_factory([["## Dosing", "Apixaban 2.5 mg"]])
 
     service.ingest("FDA_Apixaban_2025", data)
@@ -94,7 +102,7 @@ def test_ingest_deletes_existing_points_for_doc(
 def test_reingest_uses_identical_point_ids(
     pdf_factory: Callable[[list[list[str]]], bytes],
 ) -> None:
-    service, client = _service()
+    service, client, _ = _service()
     data = pdf_factory([["## Dosing", "| Apixaban | 2.5 mg BID |"]])
 
     service.ingest("FDA_Apixaban_2025", data)
@@ -108,9 +116,40 @@ def test_reingest_uses_identical_point_ids(
 def test_collection_created_with_hybrid_vectors(
     pdf_factory: Callable[[list[list[str]]], bytes],
 ) -> None:
-    service, client = _service(qdrant_collection="clinical_trials_hybrid")
+    service, client, _ = _service(qdrant_collection="clinical_trials_hybrid")
     data = pdf_factory([["## Dosing", "Apixaban 2.5 mg"]])
 
     service.ingest("doc", data)
 
     assert client.created == ["clinical_trials_hybrid"]
+
+
+def test_ingest_batches_embeddings_and_upserts(
+    pdf_factory: Callable[[list[list[str]]], bytes],
+) -> None:
+    service, client, embedder = _service(embed_batch_size=2)
+    data = pdf_factory(
+        [
+            ["## Dosing", "Apixaban 2.5 mg BID"],
+            ["## Contraindications", "Active bleeding."],
+            ["## Eligibility", "Age at least 18 years."],
+        ]
+    )
+
+    result = service.ingest("doc", data)
+
+    assert result.chunks_indexed == 3
+    assert embedder.calls == [2, 1]
+    assert [len(batch) for batch in client.upserted] == [2, 1]
+
+
+def test_ingest_rejects_documents_over_max_pages(
+    pdf_factory: Callable[[list[list[str]]], bytes],
+) -> None:
+    service, client, _ = _service(max_pages=2)
+    data = pdf_factory([["page one"], ["page two"], ["page three"]])
+
+    with pytest.raises(InvalidDocumentError, match="exceeding the 2-page limit"):
+        service.ingest("doc", data)
+
+    assert client.upserted == []

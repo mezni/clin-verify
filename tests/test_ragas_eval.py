@@ -14,11 +14,13 @@ import pytest
 
 from clinverify.config import Settings
 from clinverify.evaluation import (
+    LATENCY_P95_TARGET_MS,
     REQUIRED_CATEGORIES,
     EvalScores,
     EvalThresholds,
     GoldenEntry,
     evaluate_gate,
+    latency_p95,
     load_golden_dataset,
     retrieval_hit,
 )
@@ -100,6 +102,23 @@ def test_retrieval_hit_detects_expected_provenance() -> None:
     assert retrieval_hit(sources, "FDA_Apixaban_2025", 4) is True
     assert retrieval_hit(sources, "FDA_Apixaban_2025", 99) is False
     assert retrieval_hit(sources, None, None) is False
+
+
+def test_latency_p95_uses_nearest_rank() -> None:
+    samples = [100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0]
+
+    assert latency_p95(samples) == 1000.0
+    assert latency_p95([250.0]) == 250.0
+    assert latency_p95([10.0, 20.0]) == 20.0
+
+
+def test_latency_p95_target_is_documented_sla() -> None:
+    assert LATENCY_P95_TARGET_MS == 800.0
+
+
+def test_latency_p95_rejects_empty_input() -> None:
+    with pytest.raises(ValueError, match="at least one sample"):
+        latency_p95([])
 
 
 @pytest.mark.eval

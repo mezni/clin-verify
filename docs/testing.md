@@ -107,3 +107,14 @@ lint (ruff) → typecheck (mypy) → unit tests → integration tests → ragas 
 - **Contract coverage:** 100% of documented endpoints, status codes, and error envelopes exercised.
 - **Failure-mode coverage:** every entry in [sdd.md §5](sdd.md) has at least one test or a documented deferral.
 - **Release gate:** all CI checks green, SLAs met, and a manual Streamlit run-through passes.
+
+### Failure-Mode Coverage
+
+| # | Mitigation | Coverage |
+| :-- | :-- | :-- |
+| FM-1 | Page-count guard (`MAX_PAGES`) + batched embed/upsert | `tests/test_ingestion_service.py::test_ingest_rejects_documents_over_max_pages`, `::test_ingest_batches_embeddings_and_upserts`; upload caps in `tests/test_api.py` |
+| FM-2 | Hybrid BM25 + RRF + rerank; golden regression gate | `tests/test_retrieval.py`; Ragas gate (`tests/test_ragas_eval.py`, `-m eval`) |
+| FM-3 | `temperature=0.0`, abstention, citation audit | `tests/test_generator.py`; `tests/test_query_api.py` |
+| FM-4 | Header-aware separators + 80-token overlap | `tests/test_ingestion.py` |
+| FM-5 | Typed `500`/`503` envelopes, bounded retries | `tests/test_query_api.py`, `tests/test_generator.py`; degraded-mode (return sources on generation failure) is a **documented deferral** — the frozen error contract mandates `500 upstream_llm_error` |
+| FM-6 | `empty_collection` guard | `tests/test_retrieval.py`, `tests/test_query_api.py` |

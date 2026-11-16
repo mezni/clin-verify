@@ -11,6 +11,7 @@ from clinverify.errors import UpstreamLLMError
 from clinverify.generator import (
     ABSTENTION_TOKEN,
     GenerationService,
+    OpenAIChatClient,
     audit_citations,
     build_context,
     is_abstention,
@@ -164,3 +165,11 @@ def test_generate_propagates_upstream_error() -> None:
 
     with pytest.raises(UpstreamLLMError):
         service.generate("What is the dose?", [_source()])
+
+
+@pytest.mark.parametrize("api_key", [None, ""])
+def test_openai_client_fails_fast_without_api_key(api_key: str | None) -> None:
+    client = OpenAIChatClient("gpt-4o-mini", 0.0, api_key)
+
+    with pytest.raises(UpstreamLLMError, match="OPENAI_API_KEY is not configured"):
+        client.complete("system", "user")

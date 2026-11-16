@@ -11,6 +11,7 @@ See ``docs/plan.md`` (Phase 5), ``docs/adr/0008-ragas-ci-eval-gate.md``, and
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,8 @@ from typing import Literal, Protocol
 from pydantic import BaseModel
 
 Category = Literal["dosage", "contraindication", "negation", "eligibility", "abstention"]
+
+LATENCY_P95_TARGET_MS = 800.0
 
 REQUIRED_CATEGORIES: tuple[Category, ...] = (
     "dosage",
@@ -108,6 +111,20 @@ def evaluate_gate(scores: EvalScores, thresholds: EvalThresholds | None = None) 
         scores=scores,
         thresholds=limits,
     )
+
+
+def latency_p95(samples_ms: Sequence[float]) -> float:
+    """Nearest-rank 95th-percentile latency for SLA reporting (product.md §5).
+
+    Raises:
+        ValueError: if ``samples_ms`` is empty.
+    """
+
+    if not samples_ms:
+        raise ValueError("latency_p95 requires at least one sample")
+    ordered = sorted(samples_ms)
+    rank = max(1, math.ceil(0.95 * len(ordered)))
+    return ordered[rank - 1]
 
 
 def retrieval_hit(sources: Sequence[SourceLike], doc_id: str | None, page: int | None) -> bool:

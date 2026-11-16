@@ -141,6 +141,8 @@ class OpenAIChatClient:
         return self._client
 
     def complete(self, system: str, user: str) -> str:
+        if not self._api_key:
+            raise UpstreamLLMError("OPENAI_API_KEY is not configured")
         try:
             client = self._load()
             response = client.chat.completions.create(

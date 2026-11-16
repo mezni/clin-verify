@@ -13,6 +13,7 @@ Unlike general-purpose semantic RAG systems, ClinVerify combines **lexical BM25 
 - **Citation-Enforced Generation** — `gpt-4o-mini` at `temperature=0.0` with programmatic regex citation verification and deterministic `INSUFFICIENT_CONTEXT` abstention.
 - **Interactive Evidence Inspector** — Streamlit UI with pipeline topology toggle, per-stage latency telemetry, and expandable source drawers.
 - **CI/CD Evaluation Gate** — Ragas-based `Faithfulness` and `LLMContextPrecisionWithReference` metrics on every pull request.
+- **Hardened Deployment** — Page-count and upload guards, batched embedding, typed error envelopes, and a healthcheck-gated `docker compose up` stack with a CPU-only model runtime.
 
 ## Architecture
 
@@ -46,7 +47,11 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology an
 | [docs/sdd.md](docs/sdd.md) | Specification-driven design (contracts, failure modes, telemetry) |
 | [docs/plan.md](docs/plan.md) | Implementation roadmap (Phases 0–6) |
 | [docs/testing.md](docs/testing.md) | Test strategy and CI quality gates |
+| [docs/security.md](docs/security.md) | Security & safety model |
+| [docs/observability.md](docs/observability.md) | Logging, telemetry, and SLA measurement |
+| [docs/deployment.md](docs/deployment.md) | Docker Compose topology and operations |
 | [docs/adr/](docs/adr/README.md) | Architecture Decision Records |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and standards |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## Project Layout
@@ -80,12 +85,22 @@ uv run pytest
 
 ## Deployment
 
-Container orchestration (FastAPI + Qdrant + Streamlit via Docker Compose) is
-delivered in Phase 6 — see [docs/plan.md](docs/plan.md). Once available:
+The full stack (FastAPI + Qdrant + Streamlit) runs with one command via Docker
+Compose (ADR-0007):
 
 ```bash
+export OPENAI_API_KEY=sk-...   # required for generation
 docker compose up --build
 ```
+
+- API: http://localhost:8000/docs
+- Streamlit inspector: http://localhost:8501
+- Qdrant dashboard: http://localhost:6333/dashboard
+
+Healthchecks gate startup (`qdrant` → `api` → `ui`) and two volumes persist the
+index (`qdrant_storage`) and model cache (`model_cache`). See
+[docs/deployment.md](docs/deployment.md) for variables, volumes, and the
+ingest → query → inspect walkthrough.
 
 ## Usage
 

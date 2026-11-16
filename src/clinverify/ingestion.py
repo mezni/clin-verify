@@ -95,11 +95,17 @@ class VectorStore(Protocol):
     def upsert(self, *, collection_name: str, points: Any, wait: bool = True) -> Any: ...
 
 
-def parse_pdf(data: bytes) -> list[PageMarkdown]:
+def parse_pdf(data: bytes, *, max_pages: int | None = None) -> list[PageMarkdown]:
     """Parse raw PDF bytes into per-page structured Markdown.
 
+    Args:
+        data: Raw PDF bytes.
+        max_pages: Optional page-count guard (FM-1); reject larger documents
+            before parsing to bound memory use.
+
     Raises:
-        InvalidDocumentError: if the bytes are not a readable PDF.
+        InvalidDocumentError: if the bytes are not a readable PDF or the
+            document exceeds ``max_pages``.
     """
 
     try:
@@ -110,6 +116,10 @@ def parse_pdf(data: bytes) -> list[PageMarkdown]:
     try:
         if document.needs_pass:
             raise InvalidDocumentError("PDF is encrypted and cannot be read")
+        if max_pages is not None and document.page_count > max_pages:
+            raise InvalidDocumentError(
+                f"PDF has {document.page_count} pages, exceeding the {max_pages}-page limit"
+            )
         try:
             pages = pymupdf4llm.to_markdown(document, page_chunks=True)
         except Exception as exc:  # noqa: BLE001 - normalize all parse failures
@@ -228,38 +238,46 @@ class IngestionService:
             wait=True,
         )
 
-    def ingest(self, doc_id: str, data: bytes) -> IngestResult:
-        """Ingest a PDF for ``doc_id``, replacing any prior version."""
+    def _index_batch(self, doc_id: str, batch: Sequence[Chunk]) -> None:
+        dense_vectors, sparse_vectors = self._embedder.embed([chunk.text for chunk in batch])
+        points = [
+            models.PointStruct(
+                id=point_id(doc_id, chunk.chunk_index),
+                vector={
+                    DENSE_VECTOR_NAME: dense_vectors[i],
+                    SPARSE_VECTOR_NAME: sparse_vectors[i],
+                },
+                payload={
+                    "doc_id": doc_id,
+                    "page_num": chunk.page_num,
+                    "citation": chunk.citation,
+                    "text": chunk.text,
+                },
+            )
+            for i, chunk in enumerate(batch)
+        ]
+        self._client.upsert(
+            collection_name=self._settings.qdrant_collection,
+            points=points,
+            wait=True,
+        )
 
-        pages = parse_pdf(data)
+    def ingest(self, doc_id: str, data: bytes) -> IngestResult:
+        """Ingest a PDF for ``doc_id``, replacing any prior version.
+
+        Embedding and upserting are batched (``embed_batch_size``) to bound
+        peak memory on large documents (FM-1).
+        """
+
+        pages = parse_pdf(data, max_pages=self._settings.max_pages)
         chunks = chunk_pages(doc_id, pages, self._settings)
 
         self.ensure_collection()
         self._delete_document(doc_id)
 
-        if chunks:
-            dense_vectors, sparse_vectors = self._embedder.embed([chunk.text for chunk in chunks])
-            points = [
-                models.PointStruct(
-                    id=point_id(doc_id, chunk.chunk_index),
-                    vector={
-                        DENSE_VECTOR_NAME: dense_vectors[i],
-                        SPARSE_VECTOR_NAME: sparse_vectors[i],
-                    },
-                    payload={
-                        "doc_id": doc_id,
-                        "page_num": chunk.page_num,
-                        "citation": chunk.citation,
-                        "text": chunk.text,
-                    },
-                )
-                for i, chunk in enumerate(chunks)
-            ]
-            self._client.upsert(
-                collection_name=self._settings.qdrant_collection,
-                points=points,
-                wait=True,
-            )
+        batch_size = self._settings.embed_batch_size
+        for start in range(0, len(chunks), batch_size):
+            self._index_batch(doc_id, chunks[start : start + batch_size])
 
         return IngestResult(
             doc_id=doc_id,

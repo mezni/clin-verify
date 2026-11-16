@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     chunk_size: int = 600
     chunk_overlap: int = 80
     max_upload_mb: int = 50
+    max_pages: int = 300
+    embed_batch_size: int = 64
 
     api_base_url: str = "http://localhost:8000"
 
