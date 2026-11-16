@@ -145,17 +145,29 @@ Every request emits one structured JSON log line to stdout (correlated by
 ### Running tests
 
 ```bash
-uv run pytest                                  # unit tests
+uv run pytest                                  # unit tests (+ deterministic eval-gate checks)
 CLINVERIFY_INTEGRATION=1 uv run pytest         # + live Qdrant/FastEmbed tests
+CLINVERIFY_EVAL=1 uv run pytest -m eval        # + Ragas gate (calls a real LLM; needs OPENAI_API_KEY)
 ```
 
 ## Evaluation
 
-The Ragas faithfulness and context-precision gates run against a curated golden
-dataset. The suite is introduced in Phase 5 — see [docs/testing.md](docs/testing.md).
+The merge-blocking Ragas gate evaluates answer quality against the
+version-controlled [`golden_dataset.json`](golden_dataset.json), covering
+dosage, contraindication, negation, eligibility, and abstention cases
+(`docs/adr/0008-ragas-ci-eval-gate.md`):
+
+- `Faithfulness ≥ 0.95`
+- `LLMContextPrecisionWithReference ≥ 0.88`
+
+The dataset schema, coverage checks, retrieval-hit assertions, and the
+threshold logic are deterministic and run on every commit; a simulated
+regression below threshold fails the gate. The Ragas-backed run calls a real
+LLM and is wired as a required CI check (`.github/workflows/ci.yml` →
+`eval-gate`); set the `OPENAI_API_KEY` repository secret to enable it.
 
 ```bash
-uv run pytest tests/test_ragas_eval.py
+CLINVERIFY_EVAL=1 OPENAI_API_KEY=sk-... uv run pytest tests/test_ragas_eval.py -m eval
 ```
 
 ## License

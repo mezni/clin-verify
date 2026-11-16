@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 5 evaluation gate: version-controlled `golden_dataset.json` (dosage,
+  contraindication, negation, eligibility, abstention coverage) and a
+  merge-blocking Ragas gate (`tests/test_ragas_eval.py`) enforcing
+  `Faithfulness ≥ 0.95` and `LLMContextPrecisionWithReference ≥ 0.88`.
+- Deterministic gate logic and dataset validation (`src/clinverify/evaluation.py`)
+  that fails on a simulated threshold regression; wired into CI as the required
+  `eval-gate` job.
 - Phase 4 UI & telemetry: Streamlit evidence inspector (`src/clinverify/ui.py`)
   with a query box, answer pane, `hybrid_rerank` ↔ `dense_only` pipeline
   toggle, stage-by-stage telemetry, and expandable source drawers (rank,

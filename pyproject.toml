@@ -29,6 +29,8 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "respx>=0.21",
+    "ragas>=0.2",
+    "langchain-community<0.4",
 ]
 
 [build-system]
@@ -68,6 +70,8 @@ module = [
     "fastembed.*",
     "sentence_transformers",
     "sentence_transformers.*",
+    "ragas",
+    "ragas.*",
 ]
 ignore_missing_imports = true
 
@@ -79,4 +83,5 @@ asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["src"]
 markers = [
     "integration: requires a live Qdrant instance and model downloads (set CLINVERIFY_INTEGRATION=1)",
+    "eval: Ragas evaluation gate; calls a real LLM (set CLINVERIFY_EVAL=1 and OPENAI_API_KEY)",
 ]

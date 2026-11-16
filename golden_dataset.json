@@ -1,0 +1,69 @@
+[
+  {
+    "id": "q_001",
+    "category": "dosage",
+    "question": "What is the reduced dose of apixaban for patients with severe renal impairment?",
+    "ground_truth": "Patients with severe renal impairment receive a reduced dose of 2.5 mg twice daily.",
+    "expected_doc_id": "FDA_Apixaban_2025",
+    "expected_page": 4,
+    "contexts": [
+      "## 2.2 Dose Adjustments\nFor patients with severe renal impairment, the reduced dose of apixaban is 2.5 mg twice daily."
+    ]
+  },
+  {
+    "id": "q_002",
+    "category": "contraindication",
+    "question": "What is the boxed warning for apixaban?",
+    "ground_truth": "Apixaban is contraindicated in patients with active pathological bleeding.",
+    "expected_doc_id": "FDA_Apixaban_2025",
+    "expected_page": 1,
+    "contexts": [
+      "## Boxed Warning\nApixaban is contraindicated in patients with active pathological bleeding. Discontinue apixaban if serious bleeding occurs."
+    ]
+  },
+  {
+    "id": "q_003",
+    "category": "negation",
+    "question": "Are patients with prior gastrointestinal bleeding excluded from the trial?",
+    "ground_truth": "Patients with a history of gastrointestinal bleeding within 6 months are excluded from the trial.",
+    "expected_doc_id": "Protocol_ONCO_301",
+    "expected_page": 7,
+    "contexts": [
+      "## 5.2 Exclusion Criteria\nPatients must NOT have a history of gastrointestinal bleeding within 6 months prior to enrollment."
+    ]
+  },
+  {
+    "id": "q_004",
+    "category": "eligibility",
+    "question": "What is the minimum creatinine clearance required for enrollment?",
+    "ground_truth": "Patients must have a creatinine clearance of at least 30 mL/min to be eligible for enrollment.",
+    "expected_doc_id": "Protocol_ONCO_301",
+    "expected_page": 6,
+    "contexts": [
+      "## 5.1 Inclusion Criteria\nPatients must have a creatinine clearance (CrCl) >= 30 mL/min to be eligible for enrollment."
+    ]
+  },
+  {
+    "id": "q_005",
+    "category": "dosage",
+    "question": "What is the recommended starting dose of metformin?",
+    "ground_truth": "The recommended starting dose of metformin is 500 mg twice daily.",
+    "expected_doc_id": "FDA_Metformin_2024",
+    "expected_page": 3,
+    "contexts": [
+      "## 2.1 Recommended Dosage\nThe recommended starting dose of metformin is 500 mg twice daily, taken with meals."
+    ]
+  },
+  {
+    "id": "q_006",
+    "category": "abstention",
+    "question": "What is the recommended dose of metformin for type 1 diabetes?",
+    "ground_truth": "The provided documents do not contain dosing information for type 1 diabetes.",
+    "expected_doc_id": null,
+    "expected_page": null,
+    "expects_abstention": true,
+    "contexts": [
+      "## 2.1 Recommended Dosage\nThe recommended starting dose of metformin is 500 mg twice daily, taken with meals."
+    ]
+  }
+]
