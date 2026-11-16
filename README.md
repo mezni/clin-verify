@@ -52,7 +52,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology an
 ## Project Layout
 
 ```
-src/clinverify/    # application package (ingestion, retrieval, generator, api)
+src/clinverify/    # application package (ingestion, retrieval, generator, api, client, ui)
 tests/             # unit, integration, and evaluation tests
 docs/              # product, architecture, specs, SDD, plan, ADRs
 .github/workflows/ # CI (lint → typecheck → test)
@@ -123,8 +123,24 @@ citations that are programmatically verified — unresolved tags set
 `citation_verified=false`. When the context lacks the answer, `/query` returns
 `INSUFFICIENT_CONTEXT` instead of interpolating. Set `"mode": "dense_only"` for
 the baseline retrieval path. Querying before any document is ingested returns
-`400 empty_collection`. The Streamlit evidence inspector arrives in a later
-phase — see [docs/plan.md](docs/plan.md).
+`400 empty_collection`.
+
+### Evidence inspector (Streamlit)
+
+Launch the inspector against a running API (defaults to `API_BASE_URL`):
+
+```bash
+uv run streamlit run src/clinverify/ui.py
+```
+
+The UI provides a query box, an answer pane with citation-audit status, a
+`hybrid_rerank` ↔ `dense_only` pipeline toggle, stage-by-stage telemetry
+(`retrieval_ms`, `rerank_ms`, `generation_ms`, `total_ms`), and expandable
+source drawers showing each chunk's rank, reranker score, retrieval score, and
+raw Markdown.
+
+Every request emits one structured JSON log line to stdout (correlated by
+`request_id`, also returned in the `X-Request-ID` header and error envelopes).
 
 ### Running tests
 

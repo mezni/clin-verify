@@ -7,6 +7,8 @@ grounded generation, and citation auditing (Phases 2-3).
 
 from __future__ import annotations
 
+import logging
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -36,6 +38,7 @@ from clinverify.ingestion import (
     IngestionService,
     IngestionServiceProtocol,
 )
+from clinverify.logging import REQUEST_LOGGER, configure_logging, log_event
 from clinverify.retrieval import (
     CrossEncoderReranker,
     Mode,
@@ -46,6 +49,8 @@ from clinverify.retrieval import (
 
 ALLOWED_CONTENT_TYPES = frozenset({"application/pdf", "application/octet-stream"})
 PDF_MAGIC = b"%PDF-"
+
+logger = logging.getLogger(REQUEST_LOGGER)
 
 
 class IngestResponse(BaseModel):
@@ -106,6 +111,9 @@ def _request_id(request: Request) -> str:
 
 
 def _error_response(request: Request, status_code: int, error: str, detail: str) -> JSONResponse:
+    fields = dict(getattr(request.state, "log_fields", {}) or {})
+    fields["error_code"] = error
+    request.state.log_fields = fields
     payload = ErrorResponse(error=error, detail=detail, request_id=_request_id(request))
     return JSONResponse(status_code=status_code, content=payload.model_dump())
 
@@ -162,6 +170,7 @@ def create_app(
     """
 
     app_settings = settings or get_settings()
+    configure_logging()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -198,8 +207,20 @@ def create_app(
     async def attach_request_id(request: Request, call_next: Any) -> Any:
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
         request.state.request_id = request_id
+        request.state.log_fields = {}
+        start = time.perf_counter()
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+        log_event(
+            logger,
+            "request",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=round((time.perf_counter() - start) * 1000.0, 2),
+            **request.state.log_fields,
+        )
         return response
 
     @app.exception_handler(InvalidDocumentError)
@@ -278,6 +299,18 @@ def create_app(
         )
         answer = generation.generate(query=body.query, sources=result.sources)
         total_ms = result.retrieval_ms + result.rerank_ms + answer.generation_ms
+        request.state.log_fields = {
+            "mode": body.mode,
+            "top_k": body.top_k,
+            "candidates_prefetch": result.candidates_prefetch,
+            "retrieval_ms": round(result.retrieval_ms, 2),
+            "rerank_ms": round(result.rerank_ms, 2),
+            "generation_ms": round(answer.generation_ms, 2),
+            "total_ms": round(total_ms, 2),
+            "citation_verified": answer.citation_verified,
+            "citation_unresolved_count": answer.unresolved_count,
+            "abstained": answer.abstained,
+        }
         return QueryResponse(
             query=body.query,
             answer=answer.answer,

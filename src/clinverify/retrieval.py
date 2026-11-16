@@ -46,6 +46,7 @@ class RetrievalResult:
     sources: list[RetrievedChunk]
     retrieval_ms: float
     rerank_ms: float
+    candidates_prefetch: int = 0
 
 
 class Reranker(Protocol):
@@ -209,8 +210,15 @@ class RetrievalService:
                 self._to_chunk(point, score, rerank_score)
                 for (point, score), rerank_score in ranked
             ]
+            candidates_prefetch = len(pool)
         else:
             sources = [self._to_chunk(point, score, None) for point, score in candidates[:top_k]]
+            candidates_prefetch = 0
         rerank_ms = (perf_counter() - rerank_start) * 1000.0
 
-        return RetrievalResult(sources=sources, retrieval_ms=retrieval_ms, rerank_ms=rerank_ms)
+        return RetrievalResult(
+            sources=sources,
+            retrieval_ms=retrieval_ms,
+            rerank_ms=rerank_ms,
+            candidates_prefetch=candidates_prefetch,
+        )

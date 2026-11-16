@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 4 UI & telemetry: Streamlit evidence inspector (`src/clinverify/ui.py`)
+  with a query box, answer pane, `hybrid_rerank` ↔ `dense_only` pipeline
+  toggle, stage-by-stage telemetry, and expandable source drawers (rank,
+  reranker/retrieval scores, raw Markdown).
+- Typed HTTP client (`src/clinverify/client.py`) backing the UI and surfacing
+  API error envelopes with `request_id`.
+- Structured JSON request logging (`src/clinverify/logging.py`) with
+  `request_id` correlation and per-request telemetry fields (`mode`, `top_k`,
+  `candidates_prefetch`, stage latencies, citation audit status, `error_code`).
 - Phase 3 generation & citation audit: grounded `gpt-4o-mini` generation
   (`temperature=0.0`) over reranked context, deterministic
   `INSUFFICIENT_CONTEXT` abstention, and a regex citation auditor that sets

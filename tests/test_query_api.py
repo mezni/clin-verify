@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from clinverify.api import create_app
@@ -202,3 +204,35 @@ def test_query_reranker_error_returns_503() -> None:
 
     assert response.status_code == 503
     assert response.json()["error"] == "reranker_unavailable"
+
+
+def test_query_emits_structured_request_log(caplog: Any) -> None:
+    retrieval = FakeRetrievalService()
+    with caplog.at_level(logging.INFO, logger="clinverify.request"), _client(retrieval) as client:
+        response = client.post(
+            "/query",
+            json={"query": "What is the dose?"},
+            headers={"X-Request-ID": "trace-42"},
+        )
+
+    records = [r for r in caplog.records if r.name == "clinverify.request"]
+    fields = records[-1].extra_fields
+    assert response.headers["X-Request-ID"] == "trace-42"
+    assert fields["request_id"] == "trace-42"
+    assert fields["status_code"] == 200
+    assert fields["mode"] == "hybrid_rerank"
+    assert fields["top_k"] == 5
+    assert fields["citation_verified"] is True
+    assert fields["abstained"] is False
+    assert fields["total_ms"] == pytest.approx(114.2 + 342.6 + 312.1)
+
+
+def test_error_emits_error_code_in_log(caplog: Any) -> None:
+    retrieval = FakeRetrievalService(error=EmptyCollectionError("nothing ingested"))
+    with caplog.at_level(logging.INFO, logger="clinverify.request"), _client(retrieval) as client:
+        client.post("/query", json={"query": "What is the dose?"})
+
+    records = [r for r in caplog.records if r.name == "clinverify.request"]
+    fields = records[-1].extra_fields
+    assert fields["status_code"] == 400
+    assert fields["error_code"] == "empty_collection"

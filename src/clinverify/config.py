@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     chunk_overlap: int = 80
     max_upload_mb: int = 50
 
+    api_base_url: str = "http://localhost:8000"
+
 
 @lru_cache
 def get_settings() -> Settings:
